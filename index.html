@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>윙크 상담 필살기</title>
+<style>
+  /* ── 기본 초기화 ── */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { font-size: 16px; }
+  body {
+    font-family: -apple-system, 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif;
+    background: #F4F6FB;
+    color: #1A1A2E;
+    min-height: 100vh;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* ── 헤더 ── */
+  .header {
+    background: #1A3A6B;
+    color: #fff;
+    padding: 20px 20px 16px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+  }
+  .header-title {
+    font-size: 20px;
+    font-weight: 700;
+    letter-spacing: -0.3px;
+    margin-bottom: 4px;
+  }
+  .header-sub {
+    font-size: 13px;
+    opacity: 0.75;
+  }
+
+  /* ── 필터 영역 ── */
+  .filter-wrap {
+    background: #fff;
+    padding: 18px 16px 14px;
+    border-bottom: 1.5px solid #E0E6F0;
+  }
+  .filter-group { margin-bottom: 14px; }
+  .filter-group:last-child { margin-bottom: 0; }
+  .filter-label {
+    font-size: 12px;
+    font-weight: 700;
+    color: #888;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-bottom: 8px;
+  }
+  .chip-row { display: flex; flex-wrap: wrap; gap: 8px; }
+  .chip {
+    padding: 9px 16px;
+    border-radius: 22px;
+    font-size: 15px;
+    font-weight: 600;
+    border: 2px solid #D0D8E8;
+    background: #F4F6FB;
+    color: #555;
+    cursor: pointer;
+    transition: all 0.15s;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+  .chip:active { transform: scale(0.96); }
+  .chip.active-reject {
+    background: #C62828;
+    border-color: #C62828;
+    color: #fff;
+  }
+  .chip.active-age {
+    background: #1A3A6B;
+    border-color: #1A3A6B;
+    color: #fff;
+  }
+  .chip.active-state {
+    background: #2E7D32;
+    border-color: #2E7D32;
+    color: #fff;
+  }
+
+  /* 초기화 버튼 */
+  .reset-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin-top: 12px;
+    padding: 7px 14px;
+    border-radius: 16px;
+    background: none;
+    border: 1.5px solid #ccc;
+    color: #888;
+    font-size: 13px;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .reset-btn:active { opacity: 0.7; }
+
+  /* ── 결과 카운트 ── */
+  .result-bar {
+    padding: 12px 16px;
+    font-size: 13px;
+    color: #666;
+    font-weight: 600;
+  }
+  .result-bar span { color: #1A3A6B; font-size: 16px; }
+
+  /* ── 카드 목록 ── */
+  .card-list {
+    padding: 0 14px 80px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  /* ── 케이스 카드 ── */
+  .card {
+    background: #fff;
+    border-radius: 14px;
+    border: 2px solid #E0E6F0;
+    overflow: hidden;
+    transition: border-color 0.15s;
+  }
+  .card.open { border-color: #1A3A6B; }
+
+  .card-header {
+    padding: 16px;
+    cursor: pointer;
+  }
+  .card-meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+  .case-id {
+    font-size: 12px;
+    font-weight: 700;
+    color: #1A3A6B;
+    background: #EEF2FF;
+    padding: 2px 8px;
+    border-radius: 8px;
+  }
+  .tag {
+    padding: 3px 9px;
+    border-radius: 10px;
+    font-size: 12px;
+    font-weight: 700;
+  }
+  .tag-age    { background: #FFF3E0; color: #E65100; }
+  .tag-reject { background: #FCE4EC; color: #880E4F; }
+  .tag-state  { background: #E8F5E9; color: #1B5E20; }
+
+  .card-killshot {
+    font-size: 16px;
+    font-weight: 700;
+    color: #1A1A2E;
+    line-height: 1.5;
+    margin-bottom: 10px;
+  }
+
+  .card-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 14px;
+    color: #1A3A6B;
+    font-weight: 700;
+  }
+  .toggle-icon {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: #EEF2FF;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    transition: transform 0.2s;
+  }
+  .card.open .toggle-icon { transform: rotate(180deg); }
+
+  /* ── 스크립트 본문 ── */
+  .card-body {
+    display: none;
+    border-top: 1.5px solid #E0E6F0;
+  }
+  .card.open .card-body { display: block; }
+
+  .script-section {
+    padding: 14px 16px;
+    border-bottom: 1px solid #F0F4FA;
+  }
+  .script-section:last-child { border-bottom: none; }
+
+  .script-label {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    margin-bottom: 6px;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+  .lbl-killshot { color: #1A3A6B; }
+  .lbl-logic    { color: #6A1B9A; }
+  .lbl-intro    { color: #1565C0; }
+  .lbl-turn     { color: #00695C; }
+  .lbl-reason   { color: #E65100; }
+  .lbl-close    { color: #AD1457; }
+  .lbl-rebuttal { color: #37474F; }
+
+  .script-text {
+    font-size: 15px;
+    line-height: 1.7;
+    color: #222;
+    white-space: pre-line;
+  }
+  .killshot-text {
+    font-size: 17px;
+    font-weight: 700;
+    color: #1A3A6B;
+    line-height: 1.6;
+    white-space: pre-line;
+  }
+
+  /* ── 빈 상태 ── */
+  .empty {
+    text-align: center;
+    padding: 60px 20px;
+    color: #aaa;
+  }
+  .empty-icon { font-size: 48px; margin-bottom: 12px; }
+  .empty-text { font-size: 16px; line-height: 1.6; }
+
+  /* ── 로딩 ── */
+  .loading {
+    text-align: center;
+    padding: 60px 20px;
+    color: #1A3A6B;
+  }
+  .loading-spinner {
+    font-size: 36px;
+    animation: spin 1s linear infinite;
+    display: block;
+    margin-bottom: 12px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── 에러 ── */
+  .error-box {
+    margin: 20px 14px;
+    background: #FFF3E0;
+    border: 2px solid #FFB300;
+    border-radius: 12px;
+    padding: 16px;
+    font-size: 14px;
+    line-height: 1.6;
+    color: #5D4037;
+  }
+</style>
+</head>
+<body>
+
+<!-- ── 헤더 ── -->
+<div class="header">
+  <div class="header-title">📚 윙크 상담 필살기</div>
+  <div class="header-sub">거절사유 · 연령 선택 → 케이스 즉시 확인</div>
+</div>
+
+<!-- ── 필터 ── -->
+<div class="filter-wrap">
+  <div class="filter-group">
+    <div class="filter-label">🚫 거절사유</div>
+    <div class="chip-row" id="reject-chips"></div>
+  </div>
+  <div class="filter-group">
+    <div class="filter-label">🎂 연령</div>
+    <div class="chip-row" id="age-chips"></div>
+  </div>
+  <button class="reset-btn" onclick="resetAll()">↺ 필터 초기화</button>
+</div>
+
+<!-- ── 결과 카운트 ── -->
+<div class="result-bar" id="result-bar">케이스 불러오는 중…</div>
+
+<!-- ── 카드 목록 ── -->
+<div class="card-list" id="card-list">
+  <div class="loading">
+    <span class="loading-spinner">⏳</span>
+    데이터를 불러오는 중입니다…
+  </div>
+</div>
+
+<script>
+// ────────────────────────────────────────────────
+// ★ 여기에 구글 시트 ID를 붙여넣으세요 ★
+// ────────────────────────────────────────────────
+const SHEET_ID = '1AA1uAJ3RmieugHdeWPMFhyfq3dM_Vjgz6QXSb62ua3U';
+// ────────────────────────────────────────────────
+
+const REJECT_OPTIONS = ['아빠반대','엄마반대','가격부담','시기상조','패드거부','학습거부','형제비교','타학습지중','효과의심'];
+const AGE_OPTIONS    = ['4-5세','6세','7-8세'];
+
+let allCases = [];
+let selectedRejects = new Set();
+let selectedAges    = new Set();
+
+/* ── 초기화 ── */
+function init() {
+  buildChips('reject-chips', REJECT_OPTIONS, 'reject');
+  buildChips('age-chips',    AGE_OPTIONS,    'age');
+  fetchData();
+}
+
+/* ── 칩 생성 ── */
+function buildChips(containerId, options, type) {
+  const wrap = document.getElementById(containerId);
+  options.forEach(opt => {
+    const btn = document.createElement('button');
+    btn.className = 'chip';
+    btn.textContent = opt;
+    btn.dataset.value = opt;
+    btn.dataset.type  = type;
+    btn.addEventListener('click', () => toggleChip(btn, type, opt));
+    wrap.appendChild(btn);
+  });
+}
+
+/* ── 칩 토글 ── */
+function toggleChip(btn, type, val) {
+  const set = type === 'reject' ? selectedRejects : selectedAges;
+  const cls = type === 'reject' ? 'active-reject' : 'active-age';
+  if (set.has(val)) {
+    set.delete(val);
+    btn.classList.remove(cls);
+  } else {
+    set.add(val);
+    btn.classList.add(cls);
+  }
+  renderCards();
+}
+
+/* ── 필터 초기화 ── */
+function resetAll() {
+  selectedRejects.clear();
+  selectedAges.clear();
+  document.querySelectorAll('.chip').forEach(c => c.classList.remove('active-reject','active-age','active-state'));
+  renderCards();
+}
+
+/* ── 구글 시트 데이터 로드 ── */
+function fetchData() {
+  if (SHEET_ID === 'YOUR_GOOGLE_SHEET_ID_HERE') {
+    document.getElementById('card-list').innerHTML =
+      '<div class="error-box">⚙️ <strong>설정 필요</strong><br>index.html 파일의 SHEET_ID를 구글 시트 ID로 교체해주세요.</div>';
+    document.getElementById('result-bar').textContent = '';
+    return;
+  }
+
+  const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=케이스DB`;
+
+  fetch(url)
+    .then(r => {
+      if (!r.ok) throw new Error('네트워크 오류');
+      return r.text();
+    })
+    .then(csv => {
+      allCases = parseCSV(csv);
+      renderCards();
+    })
+    .catch(err => {
+      document.getElementById('card-list').innerHTML =
+        `<div class="error-box">⚠️ 데이터를 불러오지 못했어요.<br>구글 시트 공개 설정을 확인해주세요.<br><small>${err.message}</small></div>`;
+      document.getElementById('result-bar').textContent = '';
+    });
+}
+
+/* ── CSV 파싱 ── */
+function parseCSV(csv) {
+  const lines = csv.trim().split('\n');
+  if (lines.length < 2) return [];
+
+  const headers = parseCSVLine(lines[0]);
+  const idx = {
+    id:       headers.indexOf('케이스ID'),
+    age:      headers.indexOf('연령'),
+    reject:   headers.indexOf('거절사유'),
+    state:    headers.indexOf('아이상태'),
+    kill:     headers.indexOf('필살기_한줄'),
+    logic:    headers.indexOf('핵심논리'),
+    intro:    headers.indexOf('도입'),
+    turn:     headers.indexOf('전환'),
+    reason:   headers.indexOf('근거'),
+    close:    headers.indexOf('클로징'),
+    rebuttal: headers.indexOf('예상반박'),
+    status:   headers.indexOf('상태'),
+  };
+
+  return lines.slice(1)
+    .map(line => {
+      const cols = parseCSVLine(line);
+      return {
+        id:       cols[idx.id]       || '',
+        age:      cols[idx.age]      || '',
+        reject:   cols[idx.reject]   || '',
+        state:    cols[idx.state]    || '',
+        kill:     cols[idx.kill]     || '',
+        logic:    cols[idx.logic]    || '',
+        intro:    cols[idx.intro]    || '',
+        turn:     cols[idx.turn]     || '',
+        reason:   cols[idx.reason]   || '',
+        close:    cols[idx.close]    || '',
+        rebuttal: cols[idx.rebuttal] || '',
+        status:   cols[idx.status]   || '',
+      };
+    })
+    .filter(c => c.id && c.status === '활성');
+}
+
+/* ── CSV 한 줄 파싱 (따옴표 처리) ── */
+function parseCSVLine(line) {
+  const result = [];
+  let cur = '', inQ = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (ch === '"') {
+      if (inQ && line[i+1] === '"') { cur += '"'; i++; }
+      else inQ = !inQ;
+    } else if (ch === ',' && !inQ) {
+      result.push(cur.trim());
+      cur = '';
+    } else {
+      cur += ch;
+    }
+  }
+  result.push(cur.trim());
+  return result;
+}
+
+/* ── 카드 렌더링 ── */
+function renderCards() {
+  const list = document.getElementById('card-list');
+  const bar  = document.getElementById('result-bar');
+
+  const filtered = allCases.filter(c => {
+    const cRejects = c.reject.split(',').map(s => s.trim());
+    const cAges    = [c.age.trim()];
+
+    const rejectOK = selectedRejects.size === 0 || [...selectedRejects].some(r => cRejects.includes(r));
+    const ageOK    = selectedAges.size === 0    || [...selectedAges].some(a => cAges.includes(a));
+    return rejectOK && ageOK;
+  });
+
+  bar.innerHTML = filtered.length > 0
+    ? `<span>${filtered.length}</span>개 케이스 찾음`
+    : '조건에 맞는 케이스가 없습니다';
+
+  if (filtered.length === 0) {
+    list.innerHTML = `
+      <div class="empty">
+        <div class="empty-icon">🔍</div>
+        <div class="empty-text">해당 조건의 케이스가 없어요.<br>다른 거절사유나 연령을 선택해보세요.</div>
+      </div>`;
+    return;
+  }
+
+  list.innerHTML = filtered.map(c => buildCard(c)).join('');
+}
+
+/* ── 카드 HTML 생성 ── */
+function buildCard(c) {
+  const rejectTags = c.reject.split(',').map(r =>
+    r.trim() ? `<span class="tag tag-reject">${r.trim()}</span>` : ''
+  ).join('');
+  const stateTags = c.state.split(',').map(s =>
+    s.trim() ? `<span class="tag tag-state">${s.trim()}</span>` : ''
+  ).join('');
+
+  const sections = [
+    { label: '📌 핵심 논리', cls: 'lbl-logic',    text: c.logic,    type: 'normal' },
+    { label: '🎯 도입',      cls: 'lbl-intro',    text: c.intro,    type: 'normal' },
+    { label: '🔄 전환',      cls: 'lbl-turn',     text: c.turn,     type: 'normal' },
+    { label: '💡 근거',      cls: 'lbl-reason',   text: c.reason,   type: 'normal' },
+    { label: '✅ 클로징',    cls: 'lbl-close',    text: c.close,    type: 'normal' },
+    { label: '🛡️ 예상 반박', cls: 'lbl-rebuttal', text: c.rebuttal, type: 'normal' },
+  ].filter(s => s.text).map(s => `
+    <div class="script-section">
+      <div class="script-label ${s.cls}">${s.label}</div>
+      <div class="script-text">${s.text}</div>
+    </div>
+  `).join('');
+
+  return `
+  <div class="card" id="card-${c.id}">
+    <div class="card-header" onclick="toggleCard('${c.id}')">
+      <div class="card-meta">
+        <span class="case-id">${c.id}</span>
+        <span class="tag tag-age">${c.age}</span>
+        ${rejectTags}
+        ${stateTags}
+      </div>
+      <div class="card-killshot">"${c.kill}"</div>
+      <div class="card-toggle">
+        <span>스크립트 전체 보기</span>
+        <span class="toggle-icon">▼</span>
+      </div>
+    </div>
+    <div class="card-body">
+      <div class="script-section">
+        <div class="script-label lbl-killshot">📌 필살기 한 줄</div>
+        <div class="killshot-text">${c.kill}</div>
+      </div>
+      ${sections}
+    </div>
+  </div>`;
+}
+
+/* ── 카드 토글 ── */
+function toggleCard(id) {
+  const card = document.getElementById('card-' + id);
+  const isOpen = card.classList.contains('open');
+  // 열린 카드 전부 닫기
+  document.querySelectorAll('.card.open').forEach(c => c.classList.remove('open'));
+  if (!isOpen) {
+    card.classList.add('open');
+    setTimeout(() => card.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
+  }
+}
+
+init();
+</script>
+</body>
+</html>
