@@ -364,7 +364,7 @@ function fetchData() {
     return;
   }
 
-  const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=케이스DB`;
+  const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent('케이스DB')}`;
 
   fetch(url)
     .then(r => {
@@ -372,7 +372,9 @@ function fetchData() {
       return r.text();
     })
     .then(csv => {
-      allCases = parseCSV(csv);
+      // BOM 제거 (구글 시트 UTF-8 BOM 처리)
+      const clean = csv.replace(/^\uFEFF/, '');
+      allCases = parseCSV(clean);
       renderCards();
     })
     .catch(err => {
@@ -421,7 +423,7 @@ function parseCSV(csv) {
         status:   cols[idx.status]   || '',
       };
     })
-    .filter(c => c.id && c.status === '활성');
+    .filter(c => c.id && c.id.startsWith('WK') && c.status.trim() === '활성');
 }
 
 /* ── CSV 한 줄 파싱 (따옴표 처리) ── */
