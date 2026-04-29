@@ -14,7 +14,7 @@
   .filter-group { margin-bottom: 14px; }
   .filter-group:last-child { margin-bottom: 0; }
   .filter-label { font-size: 12px; font-weight: 700; color: #888; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 8px; }
-  .chip-row { display: flex; flex-wrap: wrap; gap: 8px; }
+  .chip-row { display: flex; flex-wrap: wrap; gap: 8px; min-height: 36px; }
   .chip { padding: 9px 16px; border-radius: 22px; font-size: 15px; font-weight: 600; border: 2px solid #D0D8E8; background: #F4F6FB; color: #555; cursor: pointer; transition: all 0.15s; -webkit-user-select: none; user-select: none; font-family: inherit; }
   .chip:active { transform: scale(0.96); }
   .chip.active-reject { background: #C62828; border-color: #C62828; color: #fff; }
@@ -55,10 +55,12 @@
 </style>
 </head>
 <body>
+
 <div class="header">
   <div class="header-title">📚 윙크 상담 필살기</div>
   <div class="header-sub">거절사유 · 연령 선택 → 케이스 즉시 확인</div>
 </div>
+
 <div class="filter-wrap">
   <div class="filter-group">
     <div class="filter-label">🚫 거절사유</div>
@@ -70,6 +72,7 @@
   </div>
   <button class="reset-btn" onclick="resetAll()">↺ 필터 초기화</button>
 </div>
+
 <div class="result-bar" id="result-bar">케이스 불러오는 중…</div>
 <div class="card-list" id="card-list">
   <div class="loading"><span class="loading-spinner">⏳</span>데이터를 불러오는 중입니다…</div>
@@ -78,59 +81,46 @@
 <script>
 const SHEET_ID = '1AA1uAJ3RmieugHdeWPMFhyfq3dM_Vjgz6QXSb62ua3U';
 
-const REJECT_OPTIONS = ['아빠반대','엄마반대','가격부담','시기상조','패드거부','학습거부','형제비교','타학습지중','효과의심'];
-const AGE_OPTIONS    = ['4-5세','6세','7-8세'];
+// 연령은 순서가 중요해서 고정
+const AGE_ORDER = ['4-5세', '6세', '7-8세'];
 
 let allCases = [];
 let selectedRejects = new Set();
 let selectedAges    = new Set();
 
-function init() {
-  buildChips('reject-chips', REJECT_OPTIONS, 'reject');
-  buildChips('age-chips',    AGE_OPTIONS,    'age');
-  fetchData();
-}
-
-function buildChips(id, options, type) {
-  const wrap = document.getElementById(id);
-  options.forEach(opt => {
-    const btn = document.createElement('button');
-    btn.className = 'chip';
-    btn.textContent = opt;
-    btn.addEventListener('click', () => toggleChip(btn, type, opt));
-    wrap.appendChild(btn);
-  });
-}
-
-function toggleChip(btn, type, val) {
-  const set = type === 'reject' ? selectedRejects : selectedAges;
-  const cls = type === 'reject' ? 'active-reject' : 'active-age';
-  if (set.has(val)) { set.delete(val); btn.classList.remove(cls); }
-  else { set.add(val); btn.classList.add(cls); }
-  renderCards();
-}
-
-function resetAll() {
-  selectedRejects.clear(); selectedAges.clear();
-  document.querySelectorAll('.chip').forEach(c => c.classList.remove('active-reject','active-age'));
-  renderCards();
-}
-
-// ── gviz JSON 방식으로 변경 (CORS 문제 해결) ──
-function fetchData() {
-  const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent('케이스DB')}`;
-
-  fetch(url)
-    .then(r => {
-      if (!r.ok) throw new Error(`HTTP ${r.status}`);
-      return r.text();
-    })
+/* ── gviz JSON 공통 fetch ── */
+function fetchSheet(sheetName) {
+  const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(sheetName)}`;
+  return fetch(url)
+    .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.text(); })
     .then(text => {
-      // gviz 응답에서 JSON 추출: /*O_o*/\ngoogle.visualization.Query.setResponse({...});
       const match = text.match(/google\.visualization\.Query\.setResponse\(([\s\S]*)\)/);
       if (!match) throw new Error('데이터 형식 오류');
-      const json = JSON.parse(match[1]);
+      return JSON.parse(match[1]);
+    });
+}
+
+/* ── 초기화: 케이스 데이터 로드 후 필터 자동 생성 ── */
+function init() {
+  fetchSheet('케이스DB')
+    .then(json => {
       allCases = parseGViz(json);
+
+      // ★ 케이스DB에서 고유 거절사유 자동 추출
+      const rejectSet = new Set();
+      allCases.forEach(c => {
+        c.reject.split(',').forEach(r => { if (r.trim()) rejectSet.add(r.trim()); });
+      });
+      const rejectOptions = [...rejectSet].sort((a, b) => a.localeCompare(b, 'ko'));
+
+      // ★ 연령은 순서 고정
+      const ageSet = new Set(allCases.map(c => c.age).filter(Boolean));
+      const ageOptions = AGE_ORDER.filter(a => ageSet.has(a));
+
+      // 필터 버튼 생성
+      buildChips('reject-chips', rejectOptions, 'reject');
+      buildChips('age-chips',    ageOptions,    'age');
+
       renderCards();
     })
     .catch(err => {
@@ -140,11 +130,40 @@ function fetchData() {
     });
 }
 
+/* ── 칩 생성 ── */
+function buildChips(containerId, options, type) {
+  const wrap = document.getElementById(containerId);
+  wrap.innerHTML = '';
+  options.forEach(opt => {
+    const btn = document.createElement('button');
+    btn.className = 'chip';
+    btn.textContent = opt;
+    btn.addEventListener('click', () => toggleChip(btn, type, opt));
+    wrap.appendChild(btn);
+  });
+}
+
+/* ── 칩 토글 ── */
+function toggleChip(btn, type, val) {
+  const set = type === 'reject' ? selectedRejects : selectedAges;
+  const cls = type === 'reject' ? 'active-reject' : 'active-age';
+  if (set.has(val)) { set.delete(val); btn.classList.remove(cls); }
+  else { set.add(val); btn.classList.add(cls); }
+  renderCards();
+}
+
+/* ── 필터 초기화 ── */
+function resetAll() {
+  selectedRejects.clear(); selectedAges.clear();
+  document.querySelectorAll('.chip').forEach(c => c.classList.remove('active-reject','active-age'));
+  renderCards();
+}
+
+/* ── gviz JSON 파싱 ── */
 function parseGViz(json) {
   const table = json.table;
   if (!table || !table.cols || !table.rows) return [];
 
-  // 헤더 추출
   const headers = table.cols.map(c => (c.label || '').trim());
   const idx = {
     id:       headers.indexOf('케이스ID'),
@@ -184,6 +203,7 @@ function parseGViz(json) {
     .filter(c => c.id && c.id.startsWith('WK') && c.status === '활성');
 }
 
+/* ── 카드 렌더링 ── */
 function renderCards() {
   const list = document.getElementById('card-list');
   const bar  = document.getElementById('result-bar');
@@ -206,9 +226,12 @@ function renderCards() {
   list.innerHTML = filtered.map(buildCard).join('');
 }
 
+/* ── 카드 HTML ── */
 function buildCard(c) {
-  const rejectTags = c.reject.split(',').filter(r=>r.trim()).map(r => `<span class="tag tag-reject">${r.trim()}</span>`).join('');
-  const stateTags  = c.state.split(',').filter(s=>s.trim()).map(s => `<span class="tag tag-state">${s.trim()}</span>`).join('');
+  const rejectTags = c.reject.split(',').filter(r => r.trim()).map(r =>
+    `<span class="tag tag-reject">${r.trim()}</span>`).join('');
+  const stateTags = c.state.split(',').filter(s => s.trim()).map(s =>
+    `<span class="tag tag-state">${s.trim()}</span>`).join('');
   const sections = [
     { label:'📌 핵심 논리', cls:'lbl-logic',    text: c.logic    },
     { label:'🎯 도입',      cls:'lbl-intro',    text: c.intro    },
@@ -216,8 +239,8 @@ function buildCard(c) {
     { label:'💡 근거',      cls:'lbl-reason',   text: c.reason   },
     { label:'✅ 클로징',    cls:'lbl-close',    text: c.close    },
     { label:'🛡️ 예상 반박', cls:'lbl-rebuttal', text: c.rebuttal },
-  ].filter(s => s.text).map(s => `
-    <div class="script-section">
+  ].filter(s => s.text).map(s =>
+    `<div class="script-section">
       <div class="script-label ${s.cls}">${s.label}</div>
       <div class="script-text">${s.text}</div>
     </div>`).join('');
@@ -242,6 +265,7 @@ function buildCard(c) {
   </div>`;
 }
 
+/* ── 카드 펼침/접기 ── */
 function toggleCard(id) {
   const card = document.getElementById('card-' + id);
   const isOpen = card.classList.contains('open');
